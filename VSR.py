@@ -7,7 +7,6 @@ import pyttsx3  # Chuyển văn bản thành giọng nói
 import wave  # Xử lý file âm thanh WAV
 import pyaudio  # Ghi âm và phát âm thanh
 import randomquestionfull  # Module tùy chỉnh để lấy câu hỏi ngẫu nhiên
-import randomquestionpart1 
 import random  # Tạo số ngẫu nhiên và chọn phần tử ngẫu nhiên
 from datetime import datetime  # Xử lý thời gian và ngày tháng
 import threading  # Đa luồng
@@ -20,7 +19,7 @@ import tempfile  # Tạo file và thư mục tạm thời
 import subprocess  # Thực thi các lệnh hệ thống
 import importlib
 import multiprocessing
-
+import cv2
 
 """phá khóa"""
 def resource_path(relative_path):
@@ -95,7 +94,6 @@ audio_folder = os.path.join(tempfile.gettempdir(), 'ielts_speaking_audio')
 if not os.path.exists(audio_folder):
     os.makedirs(audio_folder)
 
-
 """mở folder history"""
 def open_folder(path):
     try:
@@ -115,6 +113,7 @@ class giaodienmodau:
     def __init__(self, master):
         self.master = master
         master.title("IELTS Virtual Speaking Room")
+        master.iconbitmap('vsr.ico')
         master.geometry("400x460+450+150")
         master.configure(bg="white")
         filelogo = resource_path("pic/image.png")
@@ -171,7 +170,8 @@ def run_giaodienmodau():
 class giaodienluachon:
     def __init__(self, root):
         self.root = root
-        self.root.title("Test Interface")
+        self.root.title("Practice")
+        self.root.iconbitmap('vsr.ico')
         self.root.geometry("400x460+450+150")
         self.root.configure(bg="white")
 
@@ -237,15 +237,15 @@ def run_giaodienluachon():
     root.mainloop()
 
 
-
 class GiaoDienKetThuc:
     def __init__(self, master):
         self.master = master
         master.title("Speaking Test Completion")
+        master.iconbitmap('vsr.ico')
         master.geometry("600x730+450+25")
         master.configure(bg='white')
 
-        image_path = resource_path("pic/thu1.png")
+        image_path = resource_path("pic/giaodienketthuc.png")
 
         try:
             logo_image = Image.open(image_path)
@@ -332,17 +332,12 @@ def run_giaodienketthuc():
     app = GiaoDienKetThuc(root)
     root.mainloop()
 
-def run_realtest():
-    realtest = importlib.import_module('realtest')
-    if hasattr(realtest, 'main'):
-        realtest.main()
-    else:
-        print("Error: main function not found in realtest.py")
 
 class giaodienchuanbi:
     def __init__(self, master):
         self.master = master
         master.title("ID CONFIRMATION")
+        master.iconbitmap('vsr.ico')
         master.geometry("500x460+450+150")
         master.configure(bg='white')
 
@@ -410,15 +405,7 @@ class giaodienchuanbi:
     def start_test(self):
         self.submit_info()
         self.master.destroy()
-        # Khởi tạo quá trình chạy file realtest.py
-        process = multiprocessing.Process(target=run_realtest)
-        process.start()
-        # Đợi cho đến khi quá trình kết thúc
-        process.join()
-
-        # Hiện lại giao diện kết thúc
-        run_giaodienketthuc()
-
+        run_giaodienrealtest()
 
     def submit_info(self):
         info = {field: entry.get().strip() for field, entry in self.entries.items()}
@@ -450,10 +437,12 @@ def run_giaodienchuanbi():
     app = giaodienchuanbi(root)
     root.mainloop()
 
+
 class giaodienthi:
     def __init__(self, root):
         self.root = root
         self.root.title("Virtual Speaking Room")
+        self.root.iconbitmap('vsr.ico')
         self.root.geometry("1200x700")
         self.root.configure(bg='white')
 
@@ -608,9 +597,6 @@ class giaodienthi:
 
         self.recording = False
         record_thread.join()
-
-        if self.record_start_time and (time.time() - self.record_start_time) > 180:
-            self.save_recording()
 
     def speak(self, text):
         self.engine.say(text)
@@ -823,10 +809,12 @@ def run_giaodienthi():
     app = giaodienthi(root)
     root.mainloop()
 
+
 class giaodienthipart1:
     def __init__(self, root):
         self.root = root
         self.root.title("Virtual Speaking Room")
+        self.root.iconbitmap('vsr.ico')
         self.root.geometry("1200x700")
         self.root.configure(bg='white')
 
@@ -1141,10 +1129,12 @@ def run_giaodienthipart1():
     app = giaodienthipart1(root)
     root.mainloop()
 
+
 class giaodienthipart2:
     def __init__(self, root):
         self.root = root
         self.root.title("Virtual Speaking Room")
+        self.root.iconbitmap('vsr.ico')
         self.root.geometry("1200x700")
         self.root.configure(bg='white')
 
@@ -1480,6 +1470,351 @@ def run_giaodienthipart2():
     root = tk.Tk()
     app = giaodienthipart2(root)
     root.mainloop()
+
+
+class VideoPlayerWithTTS:
+    def __init__(self, window, window_title):
+        self.window = window
+        self.window.title(window_title)
+
+        # Initialize text-to-speech engine
+        self.engine = pyttsx3.init()
+        self.engine.setProperty('rate', 300)
+        self.engine.setProperty('volume', 0.9)
+
+        # Initialize speech recognition
+        self.recognizer = sr.Recognizer()
+        self.microphone = sr.Microphone()
+
+        # Randomly select examiner and set up corresponding voice and videos
+        self.setup_examiner()
+
+        self.video1 = cv2.VideoCapture(self.videos[0])
+        self.video2 = cv2.VideoCapture(self.videos[1])
+        self.current_video = self.video1
+
+        self.canvas = tk.Canvas(window, width=self.video1.get(cv2.CAP_PROP_FRAME_WIDTH),
+                                height=self.video1.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        self.canvas.pack()
+        self.delay = 15
+        self.is_speaking = False
+
+        # Get questions from main function
+        self.questions = randomquestionfull.main()
+
+        # Create a label for the Part 2 question
+        self.question_label = tk.Label(window, text="", font=('Arial', 14), bg='#e0e0e0', anchor='w', justify='left')
+        self.question_label.place(x=10, y=10)
+        self.question_label.place_forget()  # Hide the label initially
+
+        self.setup_ui()
+        # Initialize audio recording
+        self.setup_audio_recording()
+
+        # Start video update
+        self.update()
+
+        # Start the test in a separate thread
+        threading.Thread(target=self.run_test, daemon=True).start()
+
+        self.window.protocol("WM_DELETE_WINDOW", self.on_closing)
+        self.window.mainloop()
+
+    def setup_ui(self):
+        # Exit button (initially hidden)
+        self.exit_button = ttk.Button(self.window, text="Exit", command=self.show_quit_dialog)
+        self.exit_button.place(relx=0.0, rely=0.07, anchor='nw')
+        self.exit_button.place_forget()  # Hide the button initially
+
+    def show_exit_button(self):
+        # Simply show the exit button that was created in setup_ui
+        self.exit_button.place(relx=0.0, rely=0.07, anchor='nw')
+
+    def show_quit_dialog(self):
+        # Create a blurred frame
+        self.frame_blur = tk.Frame(self.window, bg='snow')
+        self.frame_blur.place(relwidth=1, relheight=1)
+
+        # Create a center frame for the exit button
+        frame_center = tk.Frame(self.frame_blur, bg='snow')
+        frame_center.place(relx=0.5, rely=0.5, anchor='center', width=200, height=100)
+
+        # Create an exit button in the center frame
+        quit_button = tk.Button(frame_center, text="Exit Chat", font=('Helvetica', 16), bg='red', fg='white',
+                                command=self.quit_app, padx=15, pady=10)
+        quit_button.place(relx=0.5, rely=0.5, anchor='center')
+
+        # Bind click events
+        self.frame_blur.bind("<Button-1>", self.close_frame_blur)
+        quit_button.bind("<Button-1>", lambda e: self.quit_app())
+
+    def close_frame_blur(self, event):
+        self.frame_blur.destroy()
+
+
+    def quit_app(self):
+        # Stop recording if in progress
+        self.recording = False
+
+        # Stop all running threads
+        for thread in threading.enumerate():
+            if thread != threading.main_thread():
+                thread.join(timeout=1.0)
+
+        # Cancel all pending tasks
+        for task in self.window.tk.call('after', 'info'):
+            self.window.after_cancel(task)
+
+        # Close the root window
+        self.window.quit()
+        self.window.destroy()
+        
+        # Note: run_giaodienketthuc() is called here, but it's not defined in this class
+        # You may need to import it or define it elsewhere in your code
+        run_giaodienketthuc()
+
+        # Exit the program
+        sys.exit(0)
+
+    def setup_audio_recording(self):
+        self.audio_folder = os.path.join(tempfile.gettempdir(), 'ielts_speaking_audio')
+        if not os.path.exists(self.audio_folder):
+            os.makedirs(self.audio_folder)
+
+        self.audio = pyaudio.PyAudio()
+        self.stream = self.audio.open(format=pyaudio.paInt16,
+                                      channels=1,
+                                      rate=44100,
+                                      input=True,
+                                      frames_per_buffer=1024)
+        self.frames = []
+        self.is_recording = True
+        threading.Thread(target=self.record_audio, daemon=True).start()
+
+    def record_audio(self):
+        while self.is_recording:
+            data = self.stream.read(1024)
+            self.frames.append(data)
+
+    def save_audio(self):
+        self.is_recording = False
+        self.stream.stop_stream()
+        self.stream.close()
+        self.audio.terminate()
+
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"MockTest_{timestamp}.wav"
+        filepath = os.path.join(self.audio_folder, filename)
+
+        wf = wave.open(filepath, 'wb')
+        wf.setnchannels(1)
+        wf.setsampwidth(self.audio.get_sample_size(pyaudio.paInt16))
+        wf.setframerate(44100)
+        wf.writeframes(b''.join(self.frames))
+        wf.close()
+
+        print(f"Audio saved to: {filepath}")
+
+    def on_closing(self):
+        self.save_audio()
+        self.window.destroy()
+        sys.exit()
+
+    def setup_examiner(self):
+        self.examiner = random.choice(['examiner1', 'examiner2', 'examiner3', 'examiner4', 'examiner5'])
+        
+        # Set up voice and videos based on the selected examiner
+        if self.examiner in ['examiner1', 'examiner2', 'examiner3']:
+            self.engine.setProperty('voice', self.engine.getProperty('voices')[0].id)  # Male voice
+        else:
+            self.engine.setProperty('voice', self.engine.getProperty('voices')[1].id)  # Female voice
+
+        # Set up videos
+        if self.examiner == 'examiner1':
+            self.videos = ['script/doccauhoi.mp4', 'script/minutesp2.mp4']
+        elif self.examiner == 'examiner2':
+            self.videos = ['script/examiner21.mp4', 'script/examiner22.mp4']
+        elif self.examiner == 'examiner3':
+            self.videos = ['script/examiner31.mp4', 'script/examiner32.mp4']
+        elif self.examiner == 'examiner4':
+            self.videos = ['script/examiner41.mp4', 'script/examiner42.mp4']
+        elif self.examiner == 'examiner5':
+            self.videos = ['script/examiner51.mp4', 'script/examiner52.mp4']
+
+    def update(self):
+        ret, frame = self.current_video.read()
+        if ret:
+            self.photo = ImageTk.PhotoImage(image=Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)))
+            self.canvas.create_image(0, 0, image=self.photo, anchor=tk.NW)
+        else:
+            # If we reach the end of the video, reset to the beginning
+            self.current_video.set(cv2.CAP_PROP_POS_FRAMES, 0)
+        self.window.after(self.delay, self.update)
+
+    def countdown(self, duration):
+        start_time = time.time()
+        while time.time() - start_time < duration:
+            time.sleep(0.1)
+        return True
+
+    def speak(self, text):
+        print(f"Speaking: {text}")
+        self.is_speaking = True
+        self.current_video = self.video1
+        self.engine.say(text)
+        self.engine.runAndWait()
+        self.is_speaking = False
+        self.current_video = self.video2
+
+    def listen(self, timeout=4):
+        with sr.Microphone() as source:
+            self.recognizer.adjust_for_ambient_noise(source)
+            try:
+                audio = self.recognizer.listen(source, timeout=timeout, phrase_time_limit=4)
+                return self.recognizer.recognize_google(audio)
+            except (sr.WaitTimeoutError, sr.UnknownValueError):
+                return ""
+
+    
+    def run_test(self):
+        self.part1()
+        self.part2()
+        self.part3()
+
+    def part1(self):
+        original_rate = self.engine.getProperty('rate')
+
+        self.engine.setProperty('rate', 150)
+        self.speak(
+            "This is the simulated speaking test and I'm your examiner. Can you hear my voice, OK please make sure that your microphone is on and keep your surrounding area silent. You should adjust the volume before the test. Are you ready? OK LET START")
+        self.speak("Now, in this first part, I'd like to ask you some questions about yourself")
+        exclamations = ["So", "Sounds great", "Ok", "Awesome", "Your idea is good", "Good", "Interesting", "Impressive",
+                        "That's wonderful to hear!", "Fascinating", "Wow!", "Amazing!", "Incredible!", "Fantastic!",
+                        "Wonderful!", "Excellent!", " ", "Fascinating!", "Interesting!", " ", " ", "Brilliant!", " ",
+                        " ", "Impressive!", "Great!", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ", " ",
+                        " ", " "]
+
+        start_time = time.time()
+        for i, question in enumerate(self.questions[:10]):
+            if time.time() - start_time > 300:  # 5 minutes
+                break
+            if i == 0:
+                self.speak(question)
+            else:
+                self.speak(f"{random.choice(exclamations)}! {question}")
+
+            silence_timer = 0
+            last_response_time = time.time()
+
+            while True:
+                response = self.listen(timeout=1)  # Listen for 1 second at a time
+                current_time = time.time()
+
+                if response:
+                    print(f"User response: {response}")
+                    silence_timer = 0  # Reset silence timer if user speaks
+                    last_response_time = current_time
+                else:
+                    silence_duration = current_time - last_response_time
+                    silence_timer += silence_duration
+
+                    if silence_timer >= 4.5:  # If silence lasts for 3.5 seconds or more
+                        break
+                    elif silence_duration < 1:  # If silence is less than 1 second
+                        silence_timer = 0  # Reset silence timer
+
+                last_response_time = current_time
+
+        self.speak("That is the end of part 1, now we will turn to part 2.")
+
+    def part2(self):
+        original_rate = self.engine.getProperty('rate')
+
+        self.speak(
+            "In part 2, I'm going to give you a topic and I'd like you to talk about it for one to two minutes. Before you talk, you'll have one minute to think about what you are going to say. You can make some notes if you wish. Here's some paper and a pencil for making notes, and here's your topic.")
+        self.engine.setProperty('rate', 200)
+
+        formatted_question = self.questions[10].replace('. ', '.\n')
+        self.question_label.config(text=formatted_question, bg='#e0e0e0')
+        self.question_label.place(x=10, y=8)
+
+        self.speak(self.questions[10])
+        self.engine.setProperty('rate', 150)
+        self.speak("You will have one minute to prepare, I will tell you when the time is up")
+        self.countdown(60)  # 1 minute preparation
+        self.speak(
+            "All right? Remember, you have one to two minutes for this, so don't worry if I stop you. I'll tell you when the time is up. Can you start speaking now?")
+
+        start_time = time.time()
+        pause_counter = 0
+        while time.time() - start_time < 120:  # 2 minutes for speaking
+            response = self.listen(timeout=1)
+            if response:
+                print(f"User response: {response}")
+                pause_counter = 0  # Reset pause counter if user speaks
+            else:
+                pause_counter += 1
+                if pause_counter >= 5:  # If user pauses for 5 seconds
+                    break
+
+
+        self.question_label.place_forget()
+        self.speak("OK, the time is up. Let's move to the next part")
+
+    def part3(self):
+        self.engine.setProperty('rate', 150)
+        self.speak(
+            "Now we move on to part 3. You've been talking about a topic, and I'd like to discuss with you some general questions related to it.")
+        exclamations = ["So", "Sounds great", "Ok", "Awesome", "Your idea is good", "Good", "Interesting", "Impressive",
+                        "That's wonderful to hear!", "Fascinating", "Wow!", "Amazing!", "Incredible!", "Fantastic!",
+                        "Wonderful!", "Excellent!", " ", "Fascinating!", "Interesting!", " ", " ", "Brilliant!",
+                        "Impressive!", "Great!", " ", " ", " ", " ", " ", " ", " "]
+
+        start_time = time.time()
+        for i, question in enumerate(self.questions[11:]):
+            if time.time() - start_time > 300:  # 5 minutes
+                break
+            if i == 0:
+                self.speak(question)
+            else:
+                self.speak(f"{random.choice(exclamations)}! {question}")
+
+            silence_duration = 0
+            last_response_time = time.time()
+
+            while silence_duration < 5.5:
+                response = self.listen(timeout=2)  # Listen for 2 seconds at a time
+                current_time = time.time()
+
+                if response:
+                    silence_duration = 0
+                    last_response_time = current_time
+                    print(f"User response: {response}")
+                else:
+                    silence_duration = current_time - last_response_time
+
+            print("Moving to next question due to 4 seconds of silence")
+
+        self.speak("That is the end of part 3, and also the end of the speaking test. Thank you")
+        self.speak("The speaking test is now complete. Thank you for your time.")
+
+        # Set the test_completed flag to True
+        self.test_completed = True
+        self.window.after(0, self.show_exit_button)
+    
+        # print("The program will close in 3 seconds...")
+        time.sleep(1)
+        self.save_audio()  # Save the audio recording
+        # self.window.quit()  # Close the Tkinter window
+        # sys.exit(0)
+        # run_giaodienketthuc()
+
+
+def run_giaodienrealtest():
+    root = tk.Tk()
+    app = VideoPlayerWithTTS(root, "Video Player with TTS")
+    root.mainloop()
+
 
 if __name__ == '__main__':
     try:
