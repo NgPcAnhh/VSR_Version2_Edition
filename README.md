@@ -10,4 +10,8 @@ Following is the application's structure and some visual examples.
  
 *** Please note that the software does not have a grading function because AI cannot replace humans in grading speaking tests. For optimal learning and progress, it is recommended to use the recorded clips as materials for self-review or to seek feedback from more experienced individuals !!! 
 
+Here is the youtube video of the practise test: 
+https://youtu.be/VUjAZG3ekSY?si=MNsvGnKWrgpQt5o3
+
+
 THE COPYRIGHT IS HELD BY MR.NGUYEN PHUC ANH.
